@@ -17,7 +17,7 @@
 	<string name="deck">Колода</string>
 	<string name="rotate">Повернуть</string>
 	<string name="sell_for">Продать %1$s</string>
-	<string name="hint_place">Тапни по плате, чтобы поставить деталь</string>
+	<string name="hint_place">Тапни по плате, чтобы поставить, или по такой же детали, чтобы объединить</string>
 	<string name="hint_select">Выбери деталь из колоды, тапни по детали на плате или перетащи её на такую же, чтобы объединить</string>
 	<string name="err_money">Не хватает монет</string>
 	<string name="err_blocked">Сюда не влезает</string>

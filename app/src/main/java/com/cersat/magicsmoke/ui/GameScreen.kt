@@ -181,6 +181,11 @@ fun GameScreen(engine: Engine, activity: Activity, sound: Sound, onSave: () -> U
 								selCard = -1
 								cardRot = false
 							}
+							PlaceResult.MERGED -> {
+								sound.merge()
+								selCard = -1
+								cardRot = false
+							}
 							PlaceResult.NO_MONEY -> message = ctx.getString(R.string.err_money)
 							PlaceResult.BLOCKED -> message = ctx.getString(R.string.err_blocked)
 						}
@@ -200,6 +205,14 @@ fun GameScreen(engine: Engine, activity: Activity, sound: Sound, onSave: () -> U
 					if (engine.merge(src, dst)) {
 						sound.merge()
 						selPart = dst
+					}
+				},
+				onSwap = { a, b ->
+					if (engine.swap(a, b)) {
+						sound.click()
+						selPart = a
+					} else {
+						message = ctx.getString(R.string.err_blocked)
 					}
 				},
 				modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(10.dp))

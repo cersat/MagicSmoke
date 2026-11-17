@@ -85,7 +85,9 @@ class Engine(private val rnd: Random = Random.Default) {
 		var d = 0.0
 		for (i in 0..2) d += abs(sh[i] - ideal[i] / s)
 		val maxD = 2.0 * (1.0 - ideal.min() / s)
-		val m = Rules.MAX_MULT - (Rules.MAX_MULT - Rules.MIN_MULT) * d / maxD
+		// Отклонение до BALANCE_TOLERANCE считается идеалом, дальше — линейно до минимума
+		val x = ((d / maxD - Rules.BALANCE_TOLERANCE) / (1.0 - Rules.BALANCE_TOLERANCE)).coerceIn(0.0, 1.0)
+		val m = Rules.MAX_MULT - (Rules.MAX_MULT - Rules.MIN_MULT) * x
 		return m.coerceIn(Rules.MIN_MULT, Rules.MAX_MULT)
 	}
 
@@ -235,6 +237,19 @@ class Engine(private val rnd: Random = Random.Default) {
 		val base = deck.getOrNull(index) ?: return PlaceResult.BLOCKED
 		val card = base.copy(rot = rot && base.shape == Shape.S1x2)
 		if (money + 1e-9 < card.price) return PlaceResult.NO_MONEY
+		// Тап по такой же детали — покупка сразу с объединением
+		val same = partAt(cx, cy)
+		if (same != null && same.kind == card.kind && same.shape == card.shape && same.level == card.level && same.level < Rules.MAX_LEVEL) {
+			money = max(0.0, money - card.price)
+			val i = parts.indexOfFirst { it.id == same.id }
+			parts[i] = same.copy(level = same.level + 1)
+			merges++
+			replaceCard(index)
+			ensureNotStuck()
+			checkAchievements()
+			changed()
+			return PlaceResult.MERGED
+		}
 		val x = cx.coerceIn(0, Rules.GRID - card.w)
 		val y = cy.coerceIn(0, Rules.GRID - card.h)
 		if (!fits(x, y, card.w, card.h)) return PlaceResult.BLOCKED
@@ -272,6 +287,30 @@ class Engine(private val rnd: Random = Random.Default) {
 		parts[i] = parts[i].copy(level = parts[i].level + 1)
 		merges++
 		checkAchievements()
+		changed()
+		return true
+	}
+
+	// Обмен местами двух деталей (если обе влезают на новые места)
+	fun swap(aId: Int, bId: Int): Boolean {
+		if (aId == bId) return false
+		val ia = parts.indexOfFirst { it.id == aId }
+		val ib = parts.indexOfFirst { it.id == bId }
+		if (ia < 0 || ib < 0) return false
+		val a = parts[ia]
+		val b = parts[ib]
+		val na = a.copy(x = b.x.coerceIn(0, Rules.GRID - a.w), y = b.y.coerceIn(0, Rules.GRID - a.h))
+		val nb = b.copy(x = a.x.coerceIn(0, Rules.GRID - b.w), y = a.y.coerceIn(0, Rules.GRID - b.h))
+		val others = parts.filter { it.id != aId && it.id != bId }
+		fun ok(p: Part, other: Part): Boolean {
+			for (cy in p.y until p.y + p.h) for (cx in p.x until p.x + p.w) {
+				if (other.covers(cx, cy) || others.any { it.covers(cx, cy) }) return false
+			}
+			return true
+		}
+		if (!ok(na, nb) || !ok(nb, na)) return false
+		parts[ia] = na
+		parts[ib] = nb
 		changed()
 		return true
 	}

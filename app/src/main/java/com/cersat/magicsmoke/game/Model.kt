@@ -25,6 +25,7 @@ object Rules {
 	const val MIN_DELAY = 1.0
 	const val INCOME_PER_POWER = 0.1
 	const val MIN_MULT = 0.5
+	const val BALANCE_TOLERANCE = 0.10
 	const val MAX_MULT = 2.0
 	const val MIN_RES_FACTOR = 0.1
 	const val OFFLINE_MAX = 8L * 3600
@@ -65,7 +66,7 @@ data class Part(
 	fun covers(cx: Int, cy: Int) = cx >= x && cx < x + w && cy >= y && cy < y + h
 }
 
-enum class PlaceResult { OK, NO_MONEY, BLOCKED }
+enum class PlaceResult { OK, MERGED, NO_MONEY, BLOCKED }
 
 class OfflineResult(val seconds: Long, val earned: Double, val burned: Int)
 

@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import com.cersat.magicsmoke.game.Engine
 import com.cersat.magicsmoke.game.Kind
+import com.cersat.magicsmoke.game.Part
 import com.cersat.magicsmoke.game.Rules
 import kotlin.math.roundToInt
 import kotlin.random.Random
@@ -28,11 +29,13 @@ fun Board(
 	onTapCell: (Int, Int) -> Unit,
 	onMove: (Int, Int, Int) -> Unit,
 	onMerge: (Int, Int) -> Unit,
+	onSwap: (Int, Int) -> Unit,
 	modifier: Modifier
 ) {
 	val tap by rememberUpdatedState(onTapCell)
 	val move by rememberUpdatedState(onMove)
 	val mergeInto by rememberUpdatedState(onMerge)
+	val swapWith by rememberUpdatedState(onSwap)
 	var dragId by remember { mutableIntStateOf(-1) }
 	var finger by remember { mutableStateOf(Offset.Zero) }
 	var grab by remember { mutableStateOf(Offset.Zero) }
@@ -44,10 +47,10 @@ fun Board(
 		return nx to ny
 	}
 
-	// Деталь под пальцем, с которой можно объединить перетаскиваемую
-	fun mergeTarget(cs: Float, srcId: Int): Int {
-		val t = engine.partAt((finger.x / cs).toInt(), (finger.y / cs).toInt()) ?: return -1
-		return if (engine.canMerge(srcId, t.id)) t.id else -1
+	// Другая деталь под пальцем (цель объединения или обмена)
+	fun dropTarget(cs: Float, srcId: Int): Part? {
+		val t = engine.partAt((finger.x / cs).toInt(), (finger.y / cs).toInt()) ?: return null
+		return if (t.id != srcId) t else null
 	}
 
 	Canvas(
@@ -79,9 +82,11 @@ fun Board(
 						val part = engine.parts.firstOrNull { it.id == dragId }
 						if (part != null) {
 							val cs = size.width / n.toFloat()
-							val target = mergeTarget(cs, part.id)
-							if (target >= 0) {
-								mergeInto(part.id, target)
+							val target = dropTarget(cs, part.id)
+							if (target != null && engine.canMerge(part.id, target.id)) {
+								mergeInto(part.id, target.id)
+							} else if (target != null) {
+								swapWith(part.id, target.id)
 							} else {
 								val (nx, ny) = snap(cs, part.w, part.h)
 								move(part.id, nx, ny)
@@ -143,10 +148,11 @@ fun Board(
 		}
 		val dragged = engine.parts.firstOrNull { it.id == dragId }
 		if (dragged != null) {
-			val target = engine.parts.firstOrNull { it.id == mergeTarget(cs, dragged.id) }
+			val target = dropTarget(cs, dragged.id)
 			if (target != null) {
-				drawRect(Pal.Gold, Offset(target.x * cs, target.y * cs), Size(target.w * cs, target.h * cs), alpha = 0.35f)
-				drawRect(Pal.Gold, Offset(target.x * cs, target.y * cs), Size(target.w * cs, target.h * cs), style = Stroke(cs * 0.08f))
+				val tc = if (engine.canMerge(dragged.id, target.id)) Pal.Gold else Pal.Cap
+				drawRect(tc, Offset(target.x * cs, target.y * cs), Size(target.w * cs, target.h * cs), alpha = 0.35f)
+				drawRect(tc, Offset(target.x * cs, target.y * cs), Size(target.w * cs, target.h * cs), style = Stroke(cs * 0.08f))
 			} else {
 				val (nx, ny) = snap(cs, dragged.w, dragged.h)
 				val ok = engine.fits(nx, ny, dragged.w, dragged.h, dragged.id)

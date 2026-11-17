@@ -18,7 +18,7 @@
 	<string name="deck">Deck</string>
 	<string name="rotate">Rotate</string>
 	<string name="sell_for">Sell %1$s</string>
-	<string name="hint_place">Tap the board to place the part</string>
+	<string name="hint_place">Tap the board to place the part, or tap an identical part to merge</string>
 	<string name="hint_select">Pick a part from the deck, tap one on the board, or drag it onto an identical one to merge</string>
 	<string name="err_money">Not enough coins</string>
 	<string name="err_blocked">It doesn\'t fit there</string>
