@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Своя иконка: чип, из которого уходит волшебный дым -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+	android:width="108dp"
+	android:height="108dp"
+	android:viewportWidth="108"
+	android:viewportHeight="108">
+	<path
+		android:fillColor="#FFC9CED6"
+		android:pathData="M28,51h6v3h-6z M28,58h6v3h-6z M28,65h6v3h-6z M28,72h6v3h-6z M74,51h6v3h-6z M74,58h6v3h-6z M74,65h6v3h-6z M74,72h6v3h-6z" />
+	<path
+		android:fillColor="#FF1B1E24"
+		android:strokeColor="#FFB388FF"
+		android:strokeWidth="2"
+		android:pathData="M38,46h32a4,4 0,0 1,4 4v24a4,4 0,0 1,-4 4h-32a4,4 0,0 1,-4 -4v-24a4,4 0,0 1,4 -4z" />
+	<path
+		android:fillColor="#FFFFC94D"
+		android:pathData="M47,55h14v14h-14z" />
+	<path
+		android:fillColor="#D98B96A3"
+		android:pathData="M47,38m-5,0a5,5 0,1 0,10 0a5,5 0,1 0,-10 0 M58,31m-6.5,0a6.5,6.5 0,1 0,13 0a6.5,6.5 0,1 0,-13 0 M66,28m-4,0a4,4 0,1 0,8 0a4,4 0,1 0,-8 0" />
+</vector>

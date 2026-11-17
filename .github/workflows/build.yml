@@ -1,0 +1,73 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Обычный пуш в main: debug-APK без рекламы
+      - name: Debug APK
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        run: ./gradlew assembleGithubDebug
+
+      - name: Upload debug APK
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: magicsmoke-debug
+          path: app/build/outputs/apk/github/debug/*.apk
+
+      # Тег v*: подписанный APK (GitHub, без рекламы) + AAB (Google Play, с рекламой)
+      - name: Check secrets
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          ADMOB_APP_ID: ${{ secrets.ADMOB_APP_ID }}
+          ADMOB_REWARDED_ID: ${{ secrets.ADMOB_REWARDED_ID }}
+        run: |
+          [ -n "$KEYSTORE_BASE64" ] || { echo "Нет секрета KEYSTORE_BASE64"; exit 1; }
+          [ -n "$ADMOB_APP_ID" ] || { echo "Нет секрета ADMOB_APP_ID"; exit 1; }
+          [ -n "$ADMOB_REWARDED_ID" ] || { echo "Нет секрета ADMOB_REWARDED_ID"; exit 1; }
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+
+      - name: Release builds
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        env:
+          KEYSTORE_FILE: ${{ runner.temp }}/release.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          ADMOB_APP_ID: ${{ secrets.ADMOB_APP_ID }}
+          ADMOB_REWARDED_ID: ${{ secrets.ADMOB_REWARDED_ID }}
+        run: ./gradlew assembleGithubRelease bundlePlayRelease
+
+      - name: Upload Play AAB
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: magicsmoke-play-aab
+          path: app/build/outputs/bundle/playRelease/*.aab
+
+      - name: GitHub Release
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/github/release/app-github-release.apk "MagicSmoke-$GITHUB_REF_NAME.apk"
+          gh release create "$GITHUB_REF_NAME" "MagicSmoke-$GITHUB_REF_NAME.apk" --title "Magic Smoke $GITHUB_REF_NAME" --generate-notes
