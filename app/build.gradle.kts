@@ -35,7 +35,8 @@ android {
 	buildTypes {
 		release {
 			isMinifyEnabled = false
-			if (keystoreFile != null) signingConfig = signingConfigs.getByName("release")
+			// Пока нет своего ключа в секретах — подписываем debug-ключом, чтобы APK ставился
+			signingConfig = signingConfigs.getByName(if (keystoreFile != null) "release" else "debug")
 		}
 	}
 
