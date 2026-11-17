@@ -29,6 +29,14 @@ class Engine(private val rnd: Random = Random.Default) {
 		private set
 	var burns = 0L
 		private set
+	var rerolls = 0
+		private set
+	var rerollsTotal = 0
+		private set
+	var sells = 0L
+		private set
+	var merges = 0L
+		private set
 	var boostUntil = 0L
 		private set
 	var timer = 0.0
@@ -249,6 +257,25 @@ class Engine(private val rnd: Random = Random.Default) {
 		return true
 	}
 
+	// Объединение: две одинаковые детали (тип, размер, мощность) → одна вдвое мощнее
+	fun canMerge(srcId: Int, dstId: Int): Boolean {
+		if (srcId == dstId) return false
+		val a = parts.firstOrNull { it.id == srcId } ?: return false
+		val b = parts.firstOrNull { it.id == dstId } ?: return false
+		return a.kind == b.kind && a.shape == b.shape && a.level == b.level && a.level < Rules.MAX_LEVEL
+	}
+
+	fun merge(srcId: Int, dstId: Int): Boolean {
+		if (!canMerge(srcId, dstId)) return false
+		parts.removeAll { it.id == srcId }
+		val i = parts.indexOfFirst { it.id == dstId }
+		parts[i] = parts[i].copy(level = parts[i].level + 1)
+		merges++
+		checkAchievements()
+		changed()
+		return true
+	}
+
 	fun rotatePart(id: Int): Boolean {
 		val i = parts.indexOfFirst { it.id == id }
 		if (i < 0) return false
@@ -266,6 +293,8 @@ class Engine(private val rnd: Random = Random.Default) {
 		if (i < 0) return
 		val p = parts.removeAt(i)
 		money += Rules.sell(p.level, p.shape)
+		sells++
+		checkAchievements()
 		ensureNotStuck()
 		changed()
 	}
@@ -289,6 +318,25 @@ class Engine(private val rnd: Random = Random.Default) {
 		}
 		while (deck.size < Rules.DECK) deck += randomCard(null)
 		deck.shuffle(rnd)
+	}
+
+	// Реролл колоды: 50 + 5 × число рероллов в этом забеге
+	fun rerollCost(): Double = Rules.REROLL_BASE + Rules.REROLL_STEP * rerolls
+
+	fun reroll(): Boolean {
+		val cost = rerollCost()
+		if (money + 1e-9 < cost) return false
+		money = max(0.0, money - cost)
+		rerolls++
+		rerollsTotal++
+		deck.clear()
+		for (k in Kind.entries) deck += randomCard(k)
+		while (deck.size < Rules.DECK) deck += randomCard(null)
+		deck.shuffle(rnd)
+		ensureNotStuck()
+		checkAchievements()
+		changed()
+		return true
 	}
 
 	private fun replaceCard(index: Int) {
@@ -321,6 +369,7 @@ class Engine(private val rnd: Random = Random.Default) {
 	fun newGame() {
 		money = Rules.START_MONEY
 		runEarned = 0.0
+		rerolls = 0
 		parts.clear()
 		pending = 0.0
 		timer = 0.0
@@ -360,6 +409,22 @@ class Engine(private val rnd: Random = Random.Default) {
 		if (burns >= 100) unlock(Ach.BURN_100)
 		if (power(Kind.CAP) > 0 && delay() <= Rules.MIN_DELAY) unlock(Ach.MIN_DELAY)
 		if (prestige > 0) unlock(Ach.PRESTIGE)
+		if (parts.size >= 25) unlock(Ach.PARTS_25)
+		if (Kind.entries.all { k -> parts.any { it.kind == k } }) unlock(Ach.ALL_KINDS)
+		if (sells >= 1) unlock(Ach.FIRST_SELL)
+		if (rerollsTotal >= 1) unlock(Ach.FIRST_REROLL)
+		if (rerollsTotal >= 25) unlock(Ach.REROLL_25)
+		if (money >= 1e4) unlock(Ach.HOLD_10K)
+		if (totalEarned >= 1e12) unlock(Ach.EARN_1T)
+		val inc = incomePerSec(false)
+		if (inc >= 100.0) unlock(Ach.INCOME_100)
+		if (inc >= 10000.0) unlock(Ach.INCOME_10K)
+		if (power(Kind.CHIP) >= 1000) unlock(Ach.CHIPS_1000)
+		if (power(Kind.RES) > 0 && resFactor() <= Rules.MIN_RES_FACTOR) unlock(Ach.MAX_PROTECT)
+		if (burns >= 1000) unlock(Ach.BURN_1000)
+		if (prestige >= 5) unlock(Ach.PRESTIGE_5)
+		if (parts.count { it.shape == Shape.S3x3 } >= 9) unlock(Ach.GIANTS_9)
+		if (merges >= 1) unlock(Ach.FIRST_MERGE)
 	}
 
 	// ---------- Сохранение ----------
@@ -370,6 +435,10 @@ class Engine(private val rnd: Random = Random.Default) {
 		put("total", totalEarned)
 		put("prestige", prestige)
 		put("burns", burns)
+		put("rerolls", rerolls)
+		put("rerollsTotal", rerollsTotal)
+		put("sells", sells)
+		put("merges", merges)
 		put("boost", boostUntil)
 		put("pending", pending)
 		put("timer", timer)
@@ -402,6 +471,10 @@ class Engine(private val rnd: Random = Random.Default) {
 		totalEarned = o.optDouble("total", 0.0)
 		prestige = o.optInt("prestige", 0)
 		burns = o.optLong("burns", 0L)
+		rerolls = o.optInt("rerolls", 0)
+		rerollsTotal = o.optInt("rerollsTotal", 0)
+		sells = o.optLong("sells", 0L)
+		merges = o.optLong("merges", 0L)
 		boostUntil = o.optLong("boost", 0L)
 		pending = o.optDouble("pending", 0.0)
 		timer = o.optDouble("timer", 0.0)

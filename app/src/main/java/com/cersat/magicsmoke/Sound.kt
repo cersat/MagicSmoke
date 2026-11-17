@@ -24,6 +24,11 @@ class Sound {
 		sin(2 * PI * (880 * t - 1200 * t * t)) * exp(-t * 10) * 0.3
 	})
 
+	private val mergeTrack = track(synth(0.22) { t ->
+		val f = if (t < 0.07) 660.0 else if (t < 0.14) 880.0 else 1320.0
+		sin(2 * PI * f * t) * exp(-t * 9) * 0.25
+	})
+
 	private fun synth(dur: Double, f: (Double) -> Double): ShortArray =
 		ShortArray((rate * dur).toInt()) { i -> (f(i.toDouble() / rate).coerceIn(-1.0, 1.0) * 32767).toInt().toShort() }
 
@@ -65,6 +70,7 @@ class Sound {
 	fun click() = play(clickTrack)
 	fun coin() = play(coinTrack)
 	fun sell() = play(sellTrack)
+	fun merge() = play(mergeTrack)
 
 	fun release() {
 		for (t in tracks) t.release()

@@ -9,6 +9,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import com.cersat.magicsmoke.game.Kind
@@ -31,8 +32,10 @@ object Pal {
 	val Cap = Color(0xFF4FC3F7)
 	val Res = Color(0xFFFFB74D)
 	val Pcb = Color(0xFF0A1A14)
-	val PcbLine = Color(0xFF143A2B)
+	val PcbLine = Color(0xFF12301F)
+	val Trace = Color(0xFF1F6A45)
 	val Copper = Color(0xFFB87333)
+	val Silk = Color(0xFFE8F0E8)
 }
 
 fun kindColor(k: Kind): Color = when (k) {
@@ -48,10 +51,14 @@ private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
 	typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
 }
 
-fun DrawScope.label(text: String, cx: Float, cy: Float, maxW: Float, size: Float, color: Color, alpha: Float) {
+private fun fitSize(text: String, maxW: Float, size: Float): Float {
 	textPaint.textSize = size
 	val w = textPaint.measureText(text)
-	if (w > maxW && w > 0f) textPaint.textSize = size * maxW / w
+	return if (w > maxW && w > 0f) size * maxW / w else size
+}
+
+fun DrawScope.label(text: String, cx: Float, cy: Float, maxW: Float, size: Float, color: Color, alpha: Float) {
+	textPaint.textSize = fitSize(text, maxW, size)
 	textPaint.color = color.toArgb()
 	textPaint.alpha = (alpha.coerceIn(0f, 1f) * 255).toInt()
 	val fm = textPaint.fontMetrics
@@ -59,36 +66,52 @@ fun DrawScope.label(text: String, cx: Float, cy: Float, maxW: Float, size: Float
 	drawIntoCanvas { it.nativeCanvas.drawText(text, cx, y, textPaint) }
 }
 
-// Цветовой код резистора: две цифры мощности + множитель
-private val bandColors = listOf(
-	Color(0xFF111111), Color(0xFF7B4A2A), Color(0xFFD8322E), Color(0xFFF2852B), Color(0xFFF5D90A),
-	Color(0xFF3DAA4A), Color(0xFF2F6FE0), Color(0xFF8E44D8), Color(0xFF8D8D8D), Color(0xFFF2F2F2)
-)
-
-private fun bands(level: Int): List<Color> {
-	val s = Rules.power(level).toString().padStart(2, '0')
-	val d1 = s[0] - '0'
-	val d2 = s[1] - '0'
-	val m = (s.length - 2).coerceIn(0, 9)
-	return listOf(bandColors[d1], bandColors[d2], bandColors[m], Color(0xFFD4AF37))
+// Текст на тёмной подложке — читается на любом фоне
+fun DrawScope.pill(text: String, cx: Float, cy: Float, maxW: Float, size: Float, alpha: Float) {
+	val s = fitSize(text, maxW * 0.8f, size)
+	textPaint.textSize = s
+	val tw = textPaint.measureText(text)
+	val th = s * 1.1f
+	val px = s * 0.3f
+	val py = s * 0.12f
+	drawRoundRect(
+		Color.Black, Offset(cx - tw / 2 - px, cy - th / 2 - py), Size(tw + 2 * px, th + 2 * py),
+		CornerRadius(th * 0.3f), alpha = alpha * 0.78f
+	)
+	label(text, cx, cy, Float.MAX_VALUE, s, Color.White, alpha)
 }
 
-fun DrawScope.drawPart(kind: Kind, level: Int, l: Float, t: Float, w: Float, h: Float, a: Float = 1f) {
+// Шелкография-позиционник (U1, C2, R3) в левом верхнем углу детали
+private fun DrawScope.silk(tag: String, l: Float, t: Float, m: Float, alpha: Float) {
+	val s = m * 0.17f
+	textPaint.textSize = s
+	val tw = textPaint.measureText(tag)
+	label(tag, l + m * 0.07f + tw / 2, t + m * 0.07f + s * 0.5f, Float.MAX_VALUE, s, Pal.Silk, alpha * 0.85f)
+}
+
+fun DrawScope.drawPart(kind: Kind, level: Int, l: Float, t: Float, w: Float, h: Float, a: Float = 1f, tag: String? = null) {
 	val m = min(w, h)
-	val inset = m * 0.07f
+	val kc = kindColor(kind)
+	val fi = m * 0.03f
+	val corner = CornerRadius(m * 0.08f)
+	// Посадочное место: видно, какие клетки занимает деталь
+	drawRoundRect(kc, Offset(l + fi, t + fi), Size(w - 2 * fi, h - 2 * fi), corner, alpha = a * 0.16f)
+	drawRoundRect(kc, Offset(l + fi, t + fi), Size(w - 2 * fi, h - 2 * fi), corner, style = Stroke(max(1.5f, m * 0.04f)), alpha = a * 0.9f)
+
+	val inset = m * 0.14f
 	val x = l + inset
 	val y = t + inset
 	val bw = w - 2 * inset
 	val bh = h - 2 * inset
-	val led = levelColor(level)
 	val power = Rules.power(level).toString()
+
 	when (kind) {
 		Kind.CHIP -> {
-			val pin = m * 0.11f
+			val pin = m * 0.1f
 			val pinColor = Color(0xFFC9CED6)
 			val vertical = bh >= bw
 			val along = if (vertical) bh else bw
-			val n = max(2, (along / (m * 0.22f)).toInt())
+			val n = max(2, (along / (m * 0.2f)).toInt())
 			val step = along / n
 			for (i in 0 until n) {
 				val c = (i + 0.5f) * step
@@ -105,11 +128,11 @@ fun DrawScope.drawPart(kind: Kind, level: Int, l: Float, t: Float, w: Float, h: 
 			val by = if (vertical) y else y + pin * 0.8f
 			val bW = if (vertical) bw - pin * 1.6f else bw
 			val bH = if (vertical) bh else bh - pin * 1.6f
-			val r = CornerRadius(m * 0.07f)
-			drawRoundRect(Color(0xFF1B1E24), Offset(bx, by), Size(bW, bH), r, alpha = a)
-			drawRoundRect(led, Offset(bx, by), Size(bW, bH), r, style = Stroke(m * 0.035f), alpha = a * 0.8f)
-			drawCircle(Color(0xFF454B55), m * 0.05f, Offset(bx + m * 0.13f, by + m * 0.13f), alpha = a)
-			label(power, bx + bW / 2, by + bH / 2, bW * 0.82f, m * 0.3f, led, a)
+			val r = CornerRadius(m * 0.06f)
+			drawRoundRect(Color(0xFF16181D), Offset(bx, by), Size(bW, bH), r, alpha = a)
+			drawRoundRect(Pal.Chip, Offset(bx, by), Size(bW, bH), r, style = Stroke(m * 0.025f), alpha = a * 0.6f)
+			drawCircle(levelColor(level), m * 0.045f, Offset(bx + m * 0.1f, by + bH - m * 0.1f), alpha = a)
+			label(power, bx + bW / 2, by + bH / 2, bW * 0.86f, m * 0.4f, Color.White, a)
 		}
 		Kind.CAP -> {
 			val body = Color(0xFF1F5FBF)
@@ -120,12 +143,12 @@ fun DrawScope.drawPart(kind: Kind, level: Int, l: Float, t: Float, w: Float, h: 
 				val r = bw / 2
 				drawCircle(body, r, c, alpha = a)
 				drawArc(stripe, -50f, 100f, true, Offset(c.x - r, c.y - r), Size(2 * r, 2 * r), alpha = a * 0.85f)
-				drawCircle(top, r * 0.74f, c, alpha = a)
-				val k = r * 0.45f
+				drawCircle(top, r * 0.72f, c, alpha = a)
+				val k = r * 0.5f
 				val vent = Color(0xFF7A828E)
-				drawLine(vent, Offset(c.x - k, c.y), Offset(c.x + k, c.y), r * 0.05f, alpha = a)
-				drawLine(vent, Offset(c.x, c.y - k), Offset(c.x, c.y + k), r * 0.05f, alpha = a)
-				label(power, c.x, c.y, r * 1.25f, r * 0.55f, Color(0xFF0B1A33), a)
+				drawLine(vent, Offset(c.x - k, c.y), Offset(c.x + k, c.y), r * 0.06f, alpha = a)
+				drawLine(vent, Offset(c.x, c.y - k), Offset(c.x, c.y + k), r * 0.06f, alpha = a)
+				pill(power, c.x, c.y, bw, m * 0.36f, a)
 			} else {
 				val vertical = bh > bw
 				drawRoundRect(body, Offset(x, y), Size(bw, bh), CornerRadius(m * 0.2f), alpha = a)
@@ -136,36 +159,28 @@ fun DrawScope.drawPart(kind: Kind, level: Int, l: Float, t: Float, w: Float, h: 
 					drawRect(top, Offset(x + bw * 0.05f, y), Size(bw * 0.09f, bh), alpha = a)
 					drawRect(stripe, Offset(x + bw * 0.2f, y + bh * 0.74f), Size(bw * 0.72f, bh * 0.12f), alpha = a)
 				}
-				label(power, x + bw / 2, y + bh / 2, min(bw, bh) * 0.9f, m * 0.32f, Color.White, a)
+				pill(power, x + bw / 2, y + bh / 2, min(bw, bh) * 1.1f, m * 0.36f, a)
 			}
 		}
 		Kind.RES -> {
-			val horizontal = bw >= bh
-			val lead = Color(0xFF9AA3AD)
-			val beige = Color(0xFFD9B98A)
-			val long = (if (horizontal) bw else bh) * 0.78f
-			val short = min((if (horizontal) bh else bw) * 0.62f, long * 0.45f)
+			// SMD-резистор: чёрный корпус, лужёные контакты по краям, код белым
+			val vertical = bh > bw
 			val cx = x + bw / 2
 			val cy = y + bh / 2
-			if (horizontal) drawLine(lead, Offset(x, cy), Offset(x + bw, cy), m * 0.06f, alpha = a)
-			else drawLine(lead, Offset(cx, y), Offset(cx, y + bh), m * 0.06f, alpha = a)
-			val bx = if (horizontal) cx - long / 2 else cx - short / 2
-			val by = if (horizontal) cy - short / 2 else cy - long / 2
-			val bW = if (horizontal) long else short
-			val bH = if (horizontal) short else long
-			drawRoundRect(beige, Offset(bx, by), Size(bW, bH), CornerRadius(short * 0.35f), alpha = a)
-			val bandW = long * 0.07f
-			val pos = floatArrayOf(0.12f, 0.24f, 0.36f, 0.86f)
-			val cols = bands(level)
-			for (i in 0..3) {
-				val p = pos[i] * long
-				if (horizontal) drawRect(cols[i], Offset(bx + p - bandW / 2, by), Size(bandW, bH), alpha = a)
-				else drawRect(cols[i], Offset(bx, by + p - bandW / 2), Size(bW, bandW), alpha = a)
+			val long = (if (vertical) bh else bw) * 0.96f
+			val short = min((if (vertical) bw else bh) * 0.72f, long * 0.6f)
+			val term = long * 0.17f
+			rotate(if (vertical) 90f else 0f, Offset(cx, cy)) {
+				val bx = cx - long / 2
+				val by = cy - short / 2
+				val tin = Color(0xFFCDD3DA)
+				drawRect(tin, Offset(bx, by), Size(term, short), alpha = a)
+				drawRect(tin, Offset(bx + long - term, by), Size(term, short), alpha = a)
+				drawRect(Color(0xFF141414), Offset(bx + term, by), Size(long - 2 * term, short), alpha = a)
+				drawRect(Color(0xFF2A2A2A), Offset(bx + term, by), Size(long - 2 * term, short * 0.12f), alpha = a)
+				label(power, cx, cy, (long - 2 * term) * 0.88f, short * 0.62f, Color.White, a)
 			}
-			val tx = if (horizontal) bx + long * 0.61f else cx
-			val ty = if (horizontal) cy else by + long * 0.61f
-			val maxW = if (horizontal) long * 0.4f else short * 0.9f
-			label(power, tx, ty, maxW, short * 0.55f, Color(0xFF2A1A0A), a)
 		}
 	}
+	if (tag != null) silk(tag, l, t, m, a)
 }

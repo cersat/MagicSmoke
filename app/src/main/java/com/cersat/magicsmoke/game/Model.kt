@@ -33,6 +33,8 @@ object Rules {
 	const val BOOST_MS = 10L * 60 * 1000
 	const val PRESTIGE_NEED = 1_000_000.0
 	const val PRESTIGE_BONUS = 0.10
+	const val REROLL_BASE = 50.0
+	const val REROLL_STEP = 5.0
 
 	// Идеальная пропорция по суммарной мощности: чипы : конденсаторы : резисторы
 	val IDEAL = doubleArrayOf(1.0, 2.0, 3.0)
@@ -69,5 +71,7 @@ class OfflineResult(val seconds: Long, val earned: Double, val burned: Int)
 
 enum class Ach {
 	FIRST_PART, TEN_PARTS, PERFECT, EARN_1K, EARN_1M, EARN_1B,
-	MAX_POWER, GIANT, FULL_BOARD, FIRST_BURN, BURN_100, MIN_DELAY, PRESTIGE
+	MAX_POWER, GIANT, FULL_BOARD, FIRST_BURN, BURN_100, MIN_DELAY, PRESTIGE,
+	PARTS_25, ALL_KINDS, FIRST_SELL, FIRST_REROLL, REROLL_25, HOLD_10K, EARN_1T,
+	INCOME_100, INCOME_10K, CHIPS_1000, MAX_PROTECT, BURN_1000, PRESTIGE_5, GIANTS_9, FIRST_MERGE
 }

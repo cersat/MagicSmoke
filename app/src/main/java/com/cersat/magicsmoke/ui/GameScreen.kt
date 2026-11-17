@@ -196,6 +196,12 @@ fun GameScreen(engine: Engine, activity: Activity, sound: Sound, onSave: () -> U
 						message = ctx.getString(R.string.err_blocked)
 					}
 				},
+				onMerge = { src, dst ->
+					if (engine.merge(src, dst)) {
+						sound.merge()
+						selPart = dst
+					}
+				},
 				modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(10.dp))
 			)
 
@@ -245,7 +251,26 @@ fun GameScreen(engine: Engine, activity: Activity, sound: Sound, onSave: () -> U
 			}
 
 			// Колода
-			Text(stringResource(R.string.deck), color = Pal.Dim, fontSize = 12.sp)
+			Row(verticalAlignment = Alignment.CenterVertically) {
+				Text(stringResource(R.string.deck), color = Pal.Dim, fontSize = 12.sp, modifier = Modifier.weight(1f))
+				val cost = engine.rerollCost()
+				TextButton(
+					onClick = {
+						if (engine.reroll()) {
+							sound.click()
+							selCard = -1
+							cardRot = false
+						} else {
+							message = ctx.getString(R.string.err_money)
+						}
+					}
+				) {
+					Text(
+						stringResource(R.string.reroll, Fmt.int(cost)),
+						color = if (engine.money + 1e-9 >= cost) Pal.Gold else Pal.Bad, fontSize = 13.sp
+					)
+				}
+			}
 			for (row in 0 until 2) {
 				Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
 					for (col in 0 until 4) {
@@ -420,7 +445,6 @@ private fun DeckCard(card: Card, rot: Boolean, selected: Boolean, affordable: Bo
 	val shape = RoundedCornerShape(8.dp)
 	Column(
 		modifier
-			.height(92.dp)
 			.clip(shape)
 			.background(Pal.Panel)
 			.border(if (selected) 2.dp else 1.dp, if (selected) Pal.Gold else Pal.Line, shape)
@@ -428,16 +452,17 @@ private fun DeckCard(card: Card, rot: Boolean, selected: Boolean, affordable: Bo
 			.padding(4.dp),
 		horizontalAlignment = Alignment.CenterHorizontally
 	) {
-		Canvas(Modifier.fillMaxWidth().height(50.dp)) {
+		Canvas(Modifier.fillMaxWidth().height(46.dp)) {
 			val unit = minOf(size.width / c.w, size.height / c.h, size.height / 1.4f)
 			val pw = unit * c.w
 			val ph = unit * c.h
 			drawPart(c.kind, c.level, (size.width - pw) / 2, (size.height - ph) / 2, pw, ph)
 		}
-		Text("${c.w}×${c.h}", color = Pal.Dim, fontSize = 10.sp)
+		Text("${c.w}×${c.h}", color = Pal.Dim, fontSize = 10.sp, maxLines = 1)
 		Text(
 			Fmt.dec(c.price, 1), color = if (affordable) Pal.Gold else Pal.Bad,
-			fontSize = 12.sp, fontFamily = FontFamily.Monospace, maxLines = 1
+			fontSize = 11.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold,
+			maxLines = 1, softWrap = false
 		)
 	}
 }
@@ -500,6 +525,21 @@ private fun achTitle(a: Ach): Int = when (a) {
 	Ach.BURN_100 -> R.string.ach_burn_100
 	Ach.MIN_DELAY -> R.string.ach_min_delay
 	Ach.PRESTIGE -> R.string.ach_prestige
+	Ach.PARTS_25 -> R.string.ach_parts_25
+	Ach.ALL_KINDS -> R.string.ach_all_kinds
+	Ach.FIRST_SELL -> R.string.ach_first_sell
+	Ach.FIRST_REROLL -> R.string.ach_first_reroll
+	Ach.REROLL_25 -> R.string.ach_reroll_25
+	Ach.HOLD_10K -> R.string.ach_hold_10k
+	Ach.EARN_1T -> R.string.ach_earn_1t
+	Ach.INCOME_100 -> R.string.ach_income_100
+	Ach.INCOME_10K -> R.string.ach_income_10k
+	Ach.CHIPS_1000 -> R.string.ach_chips_1000
+	Ach.MAX_PROTECT -> R.string.ach_max_protect
+	Ach.BURN_1000 -> R.string.ach_burn_1000
+	Ach.PRESTIGE_5 -> R.string.ach_prestige_5
+	Ach.GIANTS_9 -> R.string.ach_giants_9
+	Ach.FIRST_MERGE -> R.string.ach_first_merge
 }
 
 private fun achDesc(a: Ach): Int = when (a) {
@@ -516,4 +556,19 @@ private fun achDesc(a: Ach): Int = when (a) {
 	Ach.BURN_100 -> R.string.ach_burn_100_d
 	Ach.MIN_DELAY -> R.string.ach_min_delay_d
 	Ach.PRESTIGE -> R.string.ach_prestige_d
+	Ach.PARTS_25 -> R.string.ach_parts_25_d
+	Ach.ALL_KINDS -> R.string.ach_all_kinds_d
+	Ach.FIRST_SELL -> R.string.ach_first_sell_d
+	Ach.FIRST_REROLL -> R.string.ach_first_reroll_d
+	Ach.REROLL_25 -> R.string.ach_reroll_25_d
+	Ach.HOLD_10K -> R.string.ach_hold_10k_d
+	Ach.EARN_1T -> R.string.ach_earn_1t_d
+	Ach.INCOME_100 -> R.string.ach_income_100_d
+	Ach.INCOME_10K -> R.string.ach_income_10k_d
+	Ach.CHIPS_1000 -> R.string.ach_chips_1000_d
+	Ach.MAX_PROTECT -> R.string.ach_max_protect_d
+	Ach.BURN_1000 -> R.string.ach_burn_1000_d
+	Ach.PRESTIGE_5 -> R.string.ach_prestige_5_d
+	Ach.GIANTS_9 -> R.string.ach_giants_9_d
+	Ach.FIRST_MERGE -> R.string.ach_first_merge_d
 }

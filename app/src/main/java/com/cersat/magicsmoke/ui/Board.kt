@@ -16,8 +16,10 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import com.cersat.magicsmoke.game.Engine
+import com.cersat.magicsmoke.game.Kind
 import com.cersat.magicsmoke.game.Rules
 import kotlin.math.roundToInt
+import kotlin.random.Random
 
 @Composable
 fun Board(
@@ -25,10 +27,12 @@ fun Board(
 	selectedPartId: Int,
 	onTapCell: (Int, Int) -> Unit,
 	onMove: (Int, Int, Int) -> Unit,
+	onMerge: (Int, Int) -> Unit,
 	modifier: Modifier
 ) {
 	val tap by rememberUpdatedState(onTapCell)
 	val move by rememberUpdatedState(onMove)
+	val mergeInto by rememberUpdatedState(onMerge)
 	var dragId by remember { mutableIntStateOf(-1) }
 	var finger by remember { mutableStateOf(Offset.Zero) }
 	var grab by remember { mutableStateOf(Offset.Zero) }
@@ -38,6 +42,12 @@ fun Board(
 		val nx = (finger.x / cs - grab.x).roundToInt().coerceIn(0, n - w)
 		val ny = (finger.y / cs - grab.y).roundToInt().coerceIn(0, n - h)
 		return nx to ny
+	}
+
+	// Деталь под пальцем, с которой можно объединить перетаскиваемую
+	fun mergeTarget(cs: Float, srcId: Int): Int {
+		val t = engine.partAt((finger.x / cs).toInt(), (finger.y / cs).toInt()) ?: return -1
+		return if (engine.canMerge(srcId, t.id)) t.id else -1
 	}
 
 	Canvas(
@@ -68,8 +78,14 @@ fun Board(
 					onDragEnd = {
 						val part = engine.parts.firstOrNull { it.id == dragId }
 						if (part != null) {
-							val (nx, ny) = snap(size.width / n.toFloat(), part.w, part.h)
-							move(part.id, nx, ny)
+							val cs = size.width / n.toFloat()
+							val target = mergeTarget(cs, part.id)
+							if (target >= 0) {
+								mergeInto(part.id, target)
+							} else {
+								val (nx, ny) = snap(cs, part.w, part.h)
+								move(part.id, nx, ny)
+							}
 						}
 						dragId = -1
 					},
@@ -85,22 +101,57 @@ fun Board(
 			drawLine(Pal.PcbLine, Offset(p, 0f), Offset(p, size.height), cs * 0.02f)
 			drawLine(Pal.PcbLine, Offset(0f, p), Offset(size.width, p), cs * 0.02f)
 		}
-		val pad = cs * 0.16f
+		// Дорожки и переходные отверстия — всегда одинаковый рисунок
+		val tr = Random(7)
+		fun c(v: Int) = (v + 0.5f) * cs
+		repeat(26) {
+			val a = tr.nextInt(n)
+			val b0 = tr.nextInt(n - 1)
+			val b1 = (b0 + 1 + tr.nextInt(4)).coerceAtMost(n - 1)
+			if (tr.nextBoolean()) drawLine(Pal.Trace, Offset(c(b0), c(a)), Offset(c(b1), c(a)), cs * 0.09f)
+			else drawLine(Pal.Trace, Offset(c(a), c(b0)), Offset(c(a), c(b1)), cs * 0.09f)
+		}
+		val pad = cs * 0.2f
 		for (cy in 0 until n) for (cx in 0 until n) {
-			drawRect(Pal.Copper, Offset((cx + 0.5f) * cs - pad / 2, (cy + 0.5f) * cs - pad / 2), Size(pad, pad), alpha = 0.45f)
+			drawRect(Pal.Copper, Offset(c(cx) - pad / 2, c(cy) - pad / 2), Size(pad, pad), alpha = 0.55f)
+		}
+		repeat(14) {
+			val vx = tr.nextInt(n)
+			val vy = tr.nextInt(n - 1)
+			val o = Offset(c(vx), (vy + 1f) * cs)
+			drawCircle(Pal.Copper, cs * 0.09f, o, alpha = 0.7f)
+			drawCircle(Pal.Pcb, cs * 0.045f, o)
+		}
+		// Позиционные обозначения как на настоящей плате
+		val tags = HashMap<Int, String>()
+		var nu = 0
+		var nc = 0
+		var nr = 0
+		for (p in engine.parts) {
+			tags[p.id] = when (p.kind) {
+				Kind.CHIP -> "U${++nu}"
+				Kind.CAP -> "C${++nc}"
+				Kind.RES -> "R${++nr}"
+			}
 		}
 		for (p in engine.parts) {
 			if (p.id == dragId) continue
-			drawPart(p.kind, p.level, p.x * cs, p.y * cs, p.w * cs, p.h * cs)
+			drawPart(p.kind, p.level, p.x * cs, p.y * cs, p.w * cs, p.h * cs, tag = tags[p.id])
 			if (p.id == selectedPartId) {
 				drawRect(Pal.Gold, Offset(p.x * cs, p.y * cs), Size(p.w * cs, p.h * cs), style = Stroke(cs * 0.06f))
 			}
 		}
 		val dragged = engine.parts.firstOrNull { it.id == dragId }
 		if (dragged != null) {
-			val (nx, ny) = snap(cs, dragged.w, dragged.h)
-			val ok = engine.fits(nx, ny, dragged.w, dragged.h, dragged.id)
-			drawRect(if (ok) Pal.Good else Pal.Bad, Offset(nx * cs, ny * cs), Size(dragged.w * cs, dragged.h * cs), alpha = 0.25f)
+			val target = engine.parts.firstOrNull { it.id == mergeTarget(cs, dragged.id) }
+			if (target != null) {
+				drawRect(Pal.Gold, Offset(target.x * cs, target.y * cs), Size(target.w * cs, target.h * cs), alpha = 0.35f)
+				drawRect(Pal.Gold, Offset(target.x * cs, target.y * cs), Size(target.w * cs, target.h * cs), style = Stroke(cs * 0.08f))
+			} else {
+				val (nx, ny) = snap(cs, dragged.w, dragged.h)
+				val ok = engine.fits(nx, ny, dragged.w, dragged.h, dragged.id)
+				drawRect(if (ok) Pal.Good else Pal.Bad, Offset(nx * cs, ny * cs), Size(dragged.w * cs, dragged.h * cs), alpha = 0.25f)
+			}
 			drawPart(dragged.kind, dragged.level, finger.x - grab.x * cs, finger.y - grab.y * cs, dragged.w * cs, dragged.h * cs, 0.85f)
 		}
 	}
