@@ -48,7 +48,7 @@ class Sound {
 		t.write(data, 0, data.size)
 		tracks += t
 		t
-	} catch (e: Exception) {
+	} catch (ex: Exception) {
 		null
 	}
 
@@ -58,7 +58,7 @@ class Sound {
 			t.stop()
 			t.reloadStaticData()
 			t.play()
-		} catch (e: Exception) {
+		} catch (ex: Exception) {
 		}
 	}
 

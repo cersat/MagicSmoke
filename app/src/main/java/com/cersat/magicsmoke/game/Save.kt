@@ -19,7 +19,7 @@ object Save {
 		} else {
 			try {
 				e.fromJson(JSONObject(s))
-			} catch (e: Exception) {
+			} catch (ex: Exception) {
 				e.newGame()
 			}
 		}
