@@ -34,6 +34,9 @@ object Rules {
 	const val MAX_MULT = 2.0
 	const val BALANCE_TOLERANCE = 0.10
 	const val MIN_RES_FACTOR = 0.1
+	// −0.05% задержки / шанса за каждую единицу мощности конденсаторов / резисторов
+	const val CAP_STEP = 0.9995
+	const val RES_STEP = 0.9995
 	const val AGE_CHANCE_PER_HOUR = 0.00000001
 	const val OFFLINE_MAX = 8L * 3600
 	const val OFFLINE_BURN = 3600L
@@ -73,6 +76,8 @@ data class Part(
 	val w: Int get() = if (rot) shape.h else shape.w
 	val h: Int get() = if (rot) shape.w else shape.h
 	val power: Long get() = Rules.power(level)
+	// Вклад детали: мощность × размер в клетках
+	val output: Long get() = power * shape.cells
 	fun covers(cx: Int, cy: Int) = cx >= x && cx < x + w && cy >= y && cy < y + h
 }
 

@@ -126,7 +126,7 @@ fun GameScreen(engine: Engine, activity: Activity, sound: Sound, onSave: () -> U
 						fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace
 					)
 					Text(
-						stringResource(R.string.income, Fmt.dec(income, 1)), color = Pal.Good,
+						stringResource(R.string.income, Fmt.dec(income * delaySec, 1), Fmt.dec(delaySec, 2)), color = Pal.Good,
 						fontSize = 13.sp, fontFamily = FontFamily.Monospace
 					)
 				}
@@ -260,7 +260,7 @@ fun GameScreen(engine: Engine, activity: Activity, sound: Sound, onSave: () -> U
 						Column(Modifier.weight(1f)) {
 							Text(
 								if (part.kind == Kind.FUSE) "${kindName(part.kind)} · ${part.w}×${part.h}"
-								else "${kindName(part.kind)} · ${part.power} · ${part.w}×${part.h}",
+								else "${kindName(part.kind)} · ${part.power} × ${part.shape.cells} = ${part.output} · ${part.w}×${part.h}",
 								color = kindColor(part.kind), fontSize = 13.sp, fontWeight = FontWeight.Bold
 							)
 							Text(

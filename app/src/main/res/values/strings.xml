@@ -2,7 +2,7 @@
 <resources>
 	<string name="app_name" translatable="false">Magic Smoke</string>
 	<string name="coins">Coins</string>
-	<string name="income">+%1$s/s</string>
+	<string name="income">+%1$s every %2$s s</string>
 	<string name="multiplier">Balance ×%1$s</string>
 	<string name="balance_ok">Perfect balance</string>
 	<string name="need_more">Need more %1$s</string>
@@ -117,7 +117,7 @@
 	<string name="st_run">Earned this run</string>
 	<string name="st_max_income">Best income per second</string>
 	<string name="st_play">Play time</string>
-	<string name="st_perfect">Time at ×2</string>
+	<string name="st_perfect">Time with ×2 balance</string>
 	<string name="st_bought">Parts bought</string>
 	<string name="st_merges">Merges</string>
 	<string name="st_sells">Parts sold</string>

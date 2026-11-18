@@ -179,7 +179,10 @@ fun Board(
 			for (f in engine.fx) {
 				val k = ((now - f.start).toFloat() / FX_MS).coerceIn(0f, 1f)
 				when (f.type) {
-					FxType.PAYOUT -> pill(f.text, size.width / 2, size.height * 0.45f - k * cs * 1.5f, size.width * 0.8f, cs * 0.8f, 1f - k)
+					FxType.PAYOUT -> pill(
+						f.text, (f.x + f.w / 2f) * cs, (f.y + f.h / 2f) * cs - k * cs * 1.2f,
+						cs * 2.5f, cs * 0.45f * (0.8f + 0.2f * minOf(f.w, f.h)), 1f - k
+					)
 					FxType.MERGE -> {
 						val g = cs * 0.5f * k
 						drawRect(Pal.Gold, Offset(f.x * cs - g, f.y * cs - g), Size(f.w * cs + 2 * g, f.h * cs + 2 * g), style = Stroke(cs * 0.1f), alpha = 1f - k)

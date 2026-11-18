@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 	<string name="coins">Монеты</string>
-	<string name="income">+%1$s/с</string>
+	<string name="income">+%1$s раз в %2$s с</string>
 	<string name="multiplier">Баланс ×%1$s</string>
 	<string name="balance_ok">Идеальный баланс</string>
 	<string name="need_more">Не хватает: %1$s</string>
@@ -116,7 +116,7 @@
 	<string name="st_run">Заработано за забег</string>
 	<string name="st_max_income">Лучший доход в секунду</string>
 	<string name="st_play">Время в игре</string>
-	<string name="st_perfect">Время на ×2</string>
+	<string name="st_perfect">Время с балансом ×2</string>
 	<string name="st_bought">Куплено деталей</string>
 	<string name="st_merges">Объединений</string>
 	<string name="st_sells">Продано деталей</string>

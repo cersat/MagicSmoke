@@ -98,7 +98,7 @@ class Engine(private val rnd: Random = Random.Default) {
 
 	fun power(kind: Kind): Long {
 		var s = 0L
-		for (p in parts) if (p.kind == kind) s += p.power
+		for (p in parts) if (p.kind == kind) s += p.output
 		return s
 	}
 
@@ -156,10 +156,10 @@ class Engine(private val rnd: Random = Random.Default) {
 		return Kind.MAIN[best]
 	}
 
-	// Каждый конденсатор мощности 1 — минус 1% от текущей задержки
-	fun delay(): Double = max(Rules.MIN_DELAY, Rules.BASE_DELAY * 0.99.pow(power(Kind.CAP).toDouble()))
+	// Каждая единица мощности конденсаторов — минус 0.05% от текущей задержки
+	fun delay(): Double = max(Rules.MIN_DELAY, Rules.BASE_DELAY * Rules.CAP_STEP.pow(power(Kind.CAP).toDouble()))
 
-	fun resFactor(): Double = max(Rules.MIN_RES_FACTOR, 0.99.pow(power(Kind.RES).toDouble()))
+	fun resFactor(): Double = max(Rules.MIN_RES_FACTOR, Rules.RES_STEP.pow(power(Kind.RES).toDouble()))
 
 	// База / 1.1 за каждую ступень мощности + износ за часы работы детали, всё × защита резисторов
 	fun burnChance(p: Part): Double =
@@ -195,7 +195,7 @@ class Engine(private val rnd: Random = Random.Default) {
 			timer = 0.0
 			if (pending > 0.0) {
 				earn(pending)
-				addFx(FxType.PAYOUT, 0, 0, 0, 0, "+" + floor(pending).toLong())
+				payoutFx(pending)
 				pending = 0.0
 				onPayout?.invoke()
 			}
@@ -285,6 +285,19 @@ class Engine(private val rnd: Random = Random.Default) {
 	}
 
 	fun coinPack(): Double = max(100.0, incomePerSec(false) * 300)
+
+	// «+N» над каждым чипом — его доля выплаты
+	private fun payoutFx(total: Double) {
+		if (!animations) return
+		val chips = parts.filter { it.kind == Kind.CHIP }
+		val sum = chips.sumOf { it.output }.toDouble()
+		if (sum <= 0.0) return
+		for (p in chips.take(40)) {
+			val share = total * p.output / sum
+			val text = if (share >= 10.0) floor(share).toLong().toString() else (floor(share * 10) / 10).toString()
+			addFx(FxType.PAYOUT, p.x, p.y, p.w, p.h, "+$text")
+		}
+	}
 
 	private fun addFx(type: FxType, x: Int, y: Int, w: Int, h: Int, text: String = "") {
 		if (!animations) return
