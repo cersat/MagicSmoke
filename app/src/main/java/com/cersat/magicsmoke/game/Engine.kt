@@ -171,8 +171,11 @@ class Engine(private val rnd: Random = Random.Default) {
 
 	fun boostActive(now: Long) = now < boostUntil
 
-	fun incomePerSec(boost: Boolean): Double =
-		power(Kind.CHIP) * Rules.INCOME_PER_POWER * multiplier() * prestigeMul() * (if (boost) 2.0 else 1.0)
+	// Выплата раз в задержку; в секунду — выплата / задержка
+	fun payout(boost: Boolean): Double =
+		power(Kind.CHIP) * Rules.PAYOUT_PER_POWER * multiplier() * prestigeMul() * (if (boost) 2.0 else 1.0)
+
+	fun incomePerSec(boost: Boolean): Double = payout(boost) / delay()
 
 	// ---------- Время ----------
 
@@ -492,7 +495,16 @@ class Engine(private val rnd: Random = Random.Default) {
 		val budget = max(money, Rules.START_MONEY)
 		var top = 0
 		while (top < Rules.MAX_LEVEL && Rules.price(top + 1, Shape.S1x1) <= budget) top++
-		val level = rnd.nextInt(0, min(Rules.MAX_LEVEL, top + 1) + 1)
+		// Уровень около бюджета: +1 к бюджету 20%, по бюджету 35%, −1 25%, −2 10%, ниже 10%
+		val r = rnd.nextDouble()
+		val off = when {
+			r < 0.20 -> -1
+			r < 0.55 -> 0
+			r < 0.80 -> 1
+			r < 0.90 -> 2
+			else -> rnd.nextInt(3, 7)
+		}
+		val level = (top - off).coerceIn(0, Rules.MAX_LEVEL)
 		return Card(kind, shape, level)
 	}
 

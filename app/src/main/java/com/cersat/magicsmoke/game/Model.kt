@@ -33,7 +33,9 @@ object Rules {
 	const val START_MONEY = 100.0
 	const val BASE_DELAY = 10.0
 	const val MIN_DELAY = 1.0
-	const val INCOME_PER_POWER = 1.0
+	// Выплата за один цикл задержки на единицу мощности чипов: конденсаторы ускоряют циклы → больше дохода
+	const val PAYOUT_PER_POWER = 0.1
+	const val SELL_MAX_SHARE = 0.9
 	const val MIN_MULT = 0.5
 	const val MAX_MULT = 2.0
 	const val BALANCE_TOLERANCE = 0.10
@@ -58,7 +60,8 @@ object Rules {
 
 	fun power(level: Int): Long = 1L shl level
 	fun price(level: Int, shape: Shape): Double = power(level) * 11L * shape.cells / 10.0
-	fun sell(level: Int, shape: Shape): Double = price(level, shape) * 0.5 + (level + 1) * 2
+	// 50% цены + уровень×2, но не дороже 90% цены — чтобы покупка-продажа не давала прибыль
+	fun sell(level: Int, shape: Shape): Double = minOf(price(level, shape) * 0.5 + (level + 1) * 2, price(level, shape) * SELL_MAX_SHARE)
 }
 
 data class Card(val kind: Kind, val shape: Shape, val level: Int, val rot: Boolean = false) {
