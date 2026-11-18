@@ -24,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -55,6 +56,7 @@ import com.cersat.magicsmoke.game.Card
 import com.cersat.magicsmoke.game.Engine
 import com.cersat.magicsmoke.game.Kind
 import com.cersat.magicsmoke.game.PlaceResult
+import com.cersat.magicsmoke.game.QuestType
 import com.cersat.magicsmoke.game.Rules
 import com.cersat.magicsmoke.game.Shape
 import kotlinx.coroutines.delay
@@ -69,6 +71,9 @@ fun GameScreen(engine: Engine, activity: Activity, sound: Sound, onSave: () -> U
 	var message by remember { mutableStateOf<String?>(null) }
 	var showAch by remember { mutableStateOf(false) }
 	var showPrestige by remember { mutableStateOf(false) }
+	var showQuests by remember { mutableStateOf(false) }
+	var showStats by remember { mutableStateOf(false) }
+	var showSettings by remember { mutableStateOf(false) }
 
 	LaunchedEffect(Unit) {
 		var last = System.nanoTime()
@@ -133,6 +138,18 @@ fun GameScreen(engine: Engine, activity: Activity, sound: Sound, onSave: () -> U
 				}
 			}
 
+			Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+				val cl = engine.claimable()
+				TextButton(onClick = { showQuests = true }) {
+					Text(
+						if (cl > 0) stringResource(R.string.quests_ready, cl) else stringResource(R.string.quests),
+						color = if (cl > 0) Pal.Good else Pal.Text
+					)
+				}
+				TextButton(onClick = { showStats = true }) { Text(stringResource(R.string.stats), color = Pal.Text) }
+				TextButton(onClick = { showSettings = true }) { Text(stringResource(R.string.settings), color = Pal.Text) }
+			}
+
 			// Баланс, задержка, защита
 			Column(
 				Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Pal.Panel).padding(10.dp),
@@ -151,10 +168,20 @@ fun GameScreen(engine: Engine, activity: Activity, sound: Sound, onSave: () -> U
 					)
 				}
 				BalanceBar(engine.shares(), Modifier.fillMaxWidth().height(16.dp))
-				Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-					Text("${kindName(Kind.CHIP)} 1", color = Pal.Chip, fontSize = 11.sp)
-					Text("${kindName(Kind.CAP)} 2", color = Pal.Cap, fontSize = 11.sp)
-					Text("${kindName(Kind.RES)} 3", color = Pal.Res, fontSize = 11.sp)
+				// Суммарная мощность каждого типа и сколько нужно для идеала 1:2:3
+				val tg = engine.targets()
+				Row {
+					for ((i, k) in Kind.MAIN.withIndex()) {
+						val have = engine.power(k)
+						Column(Modifier.weight(1f)) {
+							Text("${kindName(k)} · ${Rules.IDEAL[i].toInt()}", color = kindColor(k), fontSize = 11.sp, maxLines = 1)
+							Text(
+								"$have / ${tg[i]}",
+								color = if (have >= tg[i]) kindColor(k) else Pal.Text,
+								fontSize = 13.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, maxLines = 1
+							)
+						}
+					}
 				}
 				Text(stringResource(R.string.delay, Fmt.dec(delaySec, 2)), color = Pal.Text, fontSize = 13.sp)
 				LinearProgressIndicator(
@@ -215,7 +242,7 @@ fun GameScreen(engine: Engine, activity: Activity, sound: Sound, onSave: () -> U
 						message = ctx.getString(R.string.err_blocked)
 					}
 				},
-				modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(10.dp))
+				modifier = Modifier.fillMaxWidth().aspectRatio(Rules.GRID.toFloat() / engine.rows).clip(RoundedCornerShape(10.dp))
 			)
 
 			// Информация о выбранном
@@ -232,11 +259,12 @@ fun GameScreen(engine: Engine, activity: Activity, sound: Sound, onSave: () -> U
 					part != null -> {
 						Column(Modifier.weight(1f)) {
 							Text(
-								"${kindName(part.kind)} · ${part.power} · ${part.w}×${part.h}",
+								if (part.kind == Kind.FUSE) "${kindName(part.kind)} · ${part.w}×${part.h}"
+								else "${kindName(part.kind)} · ${part.power} · ${part.w}×${part.h}",
 								color = kindColor(part.kind), fontSize = 13.sp, fontWeight = FontWeight.Bold
 							)
 							Text(
-								stringResource(R.string.burn_chance, Fmt.sig(engine.burnChance(part.kind, part.level) * 100.0)),
+								stringResource(R.string.burn_chance, Fmt.sig(engine.burnChance(part) * 100.0)),
 								color = Pal.Dim, fontSize = 11.sp
 							)
 						}
@@ -420,6 +448,108 @@ fun GameScreen(engine: Engine, activity: Activity, sound: Sound, onSave: () -> U
 		)
 	}
 
+	// Ежедневные задания
+	if (showQuests) {
+		AlertDialog(
+			onDismissRequest = { showQuests = false },
+			confirmButton = { TextButton(onClick = { showQuests = false }) { Text(stringResource(R.string.ok)) } },
+			title = { Text(stringResource(R.string.quests_title)) },
+			text = {
+				Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+					for (q in engine.quests) {
+						val prog = engine.questProgress(q)
+						Column {
+							Text(questText(q.type, q.target), color = Pal.Text, fontSize = 14.sp)
+							LinearProgressIndicator(
+								progress = { (prog / q.target).toFloat().coerceIn(0f, 1f) },
+								modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+								color = Pal.Good, trackColor = Pal.Line
+							)
+							Row(verticalAlignment = Alignment.CenterVertically) {
+								Text(
+									questProgressText(q.type, prog, q.target) + " · " + stringResource(R.string.quest_reward, Fmt.int(q.reward)),
+									color = Pal.Dim, fontSize = 12.sp, modifier = Modifier.weight(1f)
+								)
+								if (q.claimed) {
+									Text(stringResource(R.string.quest_claimed), color = Pal.Good, fontSize = 12.sp)
+								} else {
+									TextButton(enabled = engine.questDone(q), onClick = { engine.claim(q); sound.coin() }) {
+										Text(stringResource(R.string.quest_claim))
+									}
+								}
+							}
+						}
+					}
+					Text(stringResource(R.string.quests_reset), color = Pal.Dim, fontSize = 11.sp)
+				}
+			},
+			containerColor = Pal.Panel,
+			titleContentColor = Pal.Text,
+			textContentColor = Pal.Text
+		)
+	}
+
+	// Статистика
+	if (showStats) {
+		val rowsList = listOf(
+			R.string.st_total to Fmt.int(engine.totalEarned),
+			R.string.st_run to Fmt.int(engine.runEarned),
+			R.string.st_max_income to Fmt.dec(engine.maxIncome, 1),
+			R.string.st_play to duration(engine.playSeconds.toLong()),
+			R.string.st_perfect to duration(engine.perfectTotal.toLong()),
+			R.string.st_bought to engine.partsBought.toString(),
+			R.string.st_merges to engine.merges.toString(),
+			R.string.st_sells to engine.sells.toString(),
+			R.string.st_rerolls to engine.rerollsTotal.toString(),
+			R.string.st_burns to engine.burns.toString(),
+			R.string.st_fuse_saves to engine.fuseSaves.toString(),
+			R.string.st_best to (if (engine.bestLevel >= 0) Rules.power(engine.bestLevel).toString() else "—"),
+			R.string.st_quests to engine.questsDone.toString(),
+			R.string.st_prestige to "${engine.prestige} (+${engine.prestige * 10}%)",
+			R.string.st_rows to "${Rules.GRID}×${engine.rows}",
+			R.string.st_ach to "${engine.achievements.size}/${Ach.entries.size}"
+		)
+		AlertDialog(
+			onDismissRequest = { showStats = false },
+			confirmButton = { TextButton(onClick = { showStats = false }) { Text(stringResource(R.string.ok)) } },
+			title = { Text(stringResource(R.string.stats)) },
+			text = {
+				Column(Modifier.verticalScroll(rememberScrollState())) {
+					for ((label, value) in rowsList) {
+						Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+							Text(stringResource(label), color = Pal.Dim, fontSize = 13.sp, modifier = Modifier.weight(1f))
+							Text(value, color = Pal.Text, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+						}
+					}
+				}
+			},
+			containerColor = Pal.Panel,
+			titleContentColor = Pal.Text,
+			textContentColor = Pal.Text
+		)
+	}
+
+	// Настройки
+	if (showSettings) {
+		AlertDialog(
+			onDismissRequest = { showSettings = false },
+			confirmButton = { TextButton(onClick = { showSettings = false }) { Text(stringResource(R.string.ok)) } },
+			title = { Text(stringResource(R.string.settings)) },
+			text = {
+				Row(verticalAlignment = Alignment.CenterVertically) {
+					Text(stringResource(R.string.set_anim), color = Pal.Text, modifier = Modifier.weight(1f))
+					Switch(checked = engine.animations, onCheckedChange = {
+						engine.setAnimations(it)
+						save()
+					})
+				}
+			},
+			containerColor = Pal.Panel,
+			titleContentColor = Pal.Text,
+			textContentColor = Pal.Text
+		)
+	}
+
 	// Достижения
 	if (showAch) {
 		AlertDialog(
@@ -509,6 +639,7 @@ private fun kindName(k: Kind): String = stringResource(
 		Kind.CHIP -> R.string.kind_chip
 		Kind.CAP -> R.string.kind_cap
 		Kind.RES -> R.string.kind_res
+		Kind.FUSE -> R.string.kind_fuse
 	}
 )
 
@@ -518,8 +649,25 @@ private fun needName(k: Kind): String = stringResource(
 		Kind.CHIP -> R.string.need_chip
 		Kind.CAP -> R.string.need_cap
 		Kind.RES -> R.string.need_res
+		Kind.FUSE -> R.string.kind_fuse
 	}
 )
+
+@Composable
+private fun questText(t: QuestType, target: Double): String = when (t) {
+	QuestType.MERGE -> stringResource(R.string.q_merge, target.toInt())
+	QuestType.BUY -> stringResource(R.string.q_buy, target.toInt())
+	QuestType.EARN -> stringResource(R.string.q_earn, Fmt.int(target))
+	QuestType.REROLL -> stringResource(R.string.q_reroll, target.toInt())
+	QuestType.PERFECT -> stringResource(R.string.q_perfect, (target / 60).toInt())
+	QuestType.SELL -> stringResource(R.string.q_sell, target.toInt())
+}
+
+private fun questProgressText(t: QuestType, prog: Double, target: Double): String = when (t) {
+	QuestType.EARN -> "${Fmt.int(prog)} / ${Fmt.int(target)}"
+	QuestType.PERFECT -> "${(prog / 60).toInt()} / ${(target / 60).toInt()}"
+	else -> "${prog.toInt()} / ${target.toInt()}"
+}
 
 @Composable
 private fun duration(sec: Long): String = stringResource(R.string.duration, (sec / 3600).toInt(), ((sec % 3600) / 60).toInt())
@@ -553,6 +701,19 @@ private fun achTitle(a: Ach): Int = when (a) {
 	Ach.PRESTIGE_5 -> R.string.ach_prestige_5
 	Ach.GIANTS_9 -> R.string.ach_giants_9
 	Ach.FIRST_MERGE -> R.string.ach_first_merge
+	Ach.FIRST_FUSE -> R.string.ach_first_fuse
+	Ach.FUSE_SAVE -> R.string.ach_fuse_save
+	Ach.FUSE_SAVE_100 -> R.string.ach_fuse_save_100
+	Ach.MERGE_100 -> R.string.ach_merge_100
+	Ach.PARTS_50 -> R.string.ach_parts_50
+	Ach.REROLL_100 -> R.string.ach_reroll_100
+	Ach.FIRST_QUEST -> R.string.ach_first_quest
+	Ach.QUESTS_30 -> R.string.ach_quests_30
+	Ach.PLAY_10H -> R.string.ach_play_10h
+	Ach.ROWS_15 -> R.string.ach_rows_15
+	Ach.STABLE_10M -> R.string.ach_stable_10m
+	Ach.OFFLINE_8H -> R.string.ach_offline_8h
+	Ach.BEST_OF_BEST -> R.string.ach_best_of_best
 }
 
 private fun achDesc(a: Ach): Int = when (a) {
@@ -584,4 +745,17 @@ private fun achDesc(a: Ach): Int = when (a) {
 	Ach.PRESTIGE_5 -> R.string.ach_prestige_5_d
 	Ach.GIANTS_9 -> R.string.ach_giants_9_d
 	Ach.FIRST_MERGE -> R.string.ach_first_merge_d
+	Ach.FIRST_FUSE -> R.string.ach_first_fuse_d
+	Ach.FUSE_SAVE -> R.string.ach_fuse_save_d
+	Ach.FUSE_SAVE_100 -> R.string.ach_fuse_save_100_d
+	Ach.MERGE_100 -> R.string.ach_merge_100_d
+	Ach.PARTS_50 -> R.string.ach_parts_50_d
+	Ach.REROLL_100 -> R.string.ach_reroll_100_d
+	Ach.FIRST_QUEST -> R.string.ach_first_quest_d
+	Ach.QUESTS_30 -> R.string.ach_quests_30_d
+	Ach.PLAY_10H -> R.string.ach_play_10h_d
+	Ach.ROWS_15 -> R.string.ach_rows_15_d
+	Ach.STABLE_10M -> R.string.ach_stable_10m_d
+	Ach.OFFLINE_8H -> R.string.ach_offline_8h_d
+	Ach.BEST_OF_BEST -> R.string.ach_best_of_best_d
 }

@@ -31,6 +31,7 @@ object Pal {
 	val Chip = Color(0xFFB388FF)
 	val Cap = Color(0xFF4FC3F7)
 	val Res = Color(0xFFFFB74D)
+	val Fuse = Color(0xFFFF6B8B)
 	val Pcb = Color(0xFF0A1A14)
 	val PcbLine = Color(0xFF12301F)
 	val Trace = Color(0xFF1F6A45)
@@ -42,6 +43,7 @@ fun kindColor(k: Kind): Color = when (k) {
 	Kind.CHIP -> Pal.Chip
 	Kind.CAP -> Pal.Cap
 	Kind.RES -> Pal.Res
+	Kind.FUSE -> Pal.Fuse
 }
 
 fun levelColor(level: Int): Color = Color.hsv((level * 33f + 200f) % 360f, 0.7f, 1f)
@@ -89,7 +91,11 @@ private fun DrawScope.silk(tag: String, l: Float, t: Float, m: Float, alpha: Flo
 	label(tag, l + m * 0.07f + tw / 2, t + m * 0.07f + s * 0.5f, Float.MAX_VALUE, s, Pal.Silk, alpha * 0.85f)
 }
 
-fun DrawScope.drawPart(kind: Kind, level: Int, l: Float, t: Float, w: Float, h: Float, a: Float = 1f, tag: String? = null) {
+// led: яркость светодиода чипа 0..1 (мерцание), null — горит ровно
+fun DrawScope.drawPart(
+	kind: Kind, level: Int, l: Float, t: Float, w: Float, h: Float,
+	a: Float = 1f, tag: String? = null, led: Float? = null
+) {
 	val m = min(w, h)
 	val kc = kindColor(kind)
 	val fi = m * 0.03f
@@ -131,7 +137,10 @@ fun DrawScope.drawPart(kind: Kind, level: Int, l: Float, t: Float, w: Float, h: 
 			val r = CornerRadius(m * 0.06f)
 			drawRoundRect(Color(0xFF16181D), Offset(bx, by), Size(bW, bH), r, alpha = a)
 			drawRoundRect(Pal.Chip, Offset(bx, by), Size(bW, bH), r, style = Stroke(m * 0.025f), alpha = a * 0.6f)
-			drawCircle(levelColor(level), m * 0.045f, Offset(bx + m * 0.1f, by + bH - m * 0.1f), alpha = a)
+			val ledPos = Offset(bx + m * 0.1f, by + bH - m * 0.1f)
+			val glow = led ?: 1f
+			drawCircle(levelColor(level), m * 0.09f, ledPos, alpha = a * 0.35f * glow)
+			drawCircle(levelColor(level), m * 0.045f, ledPos, alpha = a * (0.3f + 0.7f * glow))
 			label(power, bx + bW / 2, by + bH / 2, bW * 0.86f, m * 0.4f, Color.White, a)
 		}
 		Kind.CAP -> {
@@ -180,6 +189,22 @@ fun DrawScope.drawPart(kind: Kind, level: Int, l: Float, t: Float, w: Float, h: 
 				drawRect(Color(0xFF2A2A2A), Offset(bx + term, by), Size(long - 2 * term, short * 0.12f), alpha = a)
 				label(power, cx, cy, (long - 2 * term) * 0.88f, short * 0.62f, Color.White, a)
 			}
+		}
+		Kind.FUSE -> {
+			// Стеклянный предохранитель: металлические колпачки и тонкая нить
+			val cx = x + bw / 2
+			val cy = y + bh / 2
+			val long = bw * 0.96f
+			val short = bh * 0.5f
+			val cap = long * 0.2f
+			val bx = cx - long / 2
+			val by = cy - short / 2
+			val metal = Color(0xFFCDD3DA)
+			drawRoundRect(Color(0xFF9FD8E8), Offset(bx + cap * 0.8f, by), Size(long - cap * 1.6f, short), CornerRadius(short * 0.3f), alpha = a * 0.35f)
+			drawRect(metal, Offset(bx, by - short * 0.06f), Size(cap, short * 1.12f), alpha = a)
+			drawRect(metal, Offset(bx + long - cap, by - short * 0.06f), Size(cap, short * 1.12f), alpha = a)
+			drawLine(Color(0xFFE8E8E8), Offset(bx + cap, cy), Offset(bx + long - cap, cy), short * 0.07f, alpha = a)
+			pill("F", cx, cy - short * 0.95f, long * 0.5f, m * 0.26f, a)
 		}
 	}
 	if (tag != null) silk(tag, l, t, m, a)
