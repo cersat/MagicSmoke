@@ -71,6 +71,8 @@ class Engine(private val rnd: Random = Random.Default) {
 	val achievements = mutableSetOf<Ach>()
 	val newAchievements = ArrayDeque<Ach>()
 	val quests = mutableListOf<Quest>()
+	// Карман: детали, временно снятые с платы (не майнят и не горят)
+	val pocket = mutableListOf<Part>()
 	val fx = mutableListOf<Fx>()
 	var onPayout: (() -> Unit)? = null
 
@@ -188,7 +190,7 @@ class Engine(private val rnd: Random = Random.Default) {
 		} else {
 			perfectStreak = 0.0
 		}
-		val best = parts.isNotEmpty() && parts.all { it.kind != Kind.FUSE && it.level == Rules.MAX_LEVEL } && isPerfect()
+		val best = parts.isNotEmpty() && parts.all { it.kind != Kind.FUSE && it.level == Rules.BEST_LEVEL } && isPerfect()
 		bestStreak = if (best) bestStreak + dt else 0.0
 		timer += dt
 		if (timer >= delay()) {
@@ -324,16 +326,26 @@ class Engine(private val rnd: Random = Random.Default) {
 		addFx(FxType.MERGE, p.x, p.y, p.w, p.h)
 	}
 
+	// Предохранитель стоит долю от стоимости всех деталей на плате
+	fun fusePrice(): Double {
+		var v = 0.0
+		for (p in parts) if (p.kind != Kind.FUSE) v += Rules.price(p.level, p.shape)
+		return max(Rules.FUSE_MIN_PRICE, floor(v * Rules.FUSE_PRICE_SHARE))
+	}
+
+	fun priceOf(c: Card): Double = if (c.kind == Kind.FUSE) fusePrice() else c.price
+
 	fun buy(index: Int, rot: Boolean, cx: Int, cy: Int): PlaceResult {
 		val base = deck.getOrNull(index) ?: return PlaceResult.BLOCKED
 		val card = base.copy(rot = rot && base.shape == Shape.S1x2)
-		if (money + 1e-9 < card.price) return PlaceResult.NO_MONEY
+		val price = priceOf(card)
+		if (money + 1e-9 < price) return PlaceResult.NO_MONEY
 		// Тап по такой же детали — покупка сразу с объединением
 		val same = partAt(cx, cy)
 		if (same != null && same.kind != Kind.FUSE && same.kind == card.kind && same.shape == card.shape &&
 			same.level == card.level && same.level < Rules.MAX_LEVEL
 		) {
-			money = max(0.0, money - card.price)
+			money = max(0.0, money - price)
 			partsBought++
 			levelUp(parts.indexOfFirst { it.id == same.id })
 			replaceCard(index)
@@ -345,13 +357,47 @@ class Engine(private val rnd: Random = Random.Default) {
 		val x = cx.coerceIn(0, Rules.GRID - card.w)
 		val y = cy.coerceIn(0, rows - card.h)
 		if (!fits(x, y, card.w, card.h)) return PlaceResult.BLOCKED
-		money = max(0.0, money - card.price)
+		money = max(0.0, money - price)
 		partsBought++
 		parts += Part(nextId++, card.kind, card.shape, card.level, x, y, card.rot)
 		if (card.kind != Kind.FUSE) bestLevel = max(bestLevel, card.level)
 		addFx(FxType.PLACE, x, y, card.w, card.h)
 		replaceCard(index)
 		ensureNotStuck()
+		checkAchievements()
+		changed()
+		return PlaceResult.OK
+	}
+
+	fun toPocket(id: Int): Boolean {
+		if (pocket.size >= Rules.POCKET) return false
+		val i = parts.indexOfFirst { it.id == id }
+		if (i < 0) return false
+		pocket += parts.removeAt(i)
+		changed()
+		return true
+	}
+
+	// Достать из кармана: на свободное место или объединить с такой же деталью
+	fun fromPocket(index: Int, rot: Boolean, cx: Int, cy: Int): PlaceResult {
+		val p0 = pocket.getOrNull(index) ?: return PlaceResult.BLOCKED
+		val p = p0.copy(rot = if (p0.shape == Shape.S1x2) rot else false)
+		val same = partAt(cx, cy)
+		if (same != null && p.kind != Kind.FUSE && same.kind == p.kind && same.shape == p.shape &&
+			same.level == p.level && same.level < Rules.MAX_LEVEL
+		) {
+			pocket.removeAt(index)
+			levelUp(parts.indexOfFirst { it.id == same.id })
+			checkAchievements()
+			changed()
+			return PlaceResult.MERGED
+		}
+		val x = cx.coerceIn(0, Rules.GRID - p.w)
+		val y = cy.coerceIn(0, rows - p.h)
+		if (!fits(x, y, p.w, p.h)) return PlaceResult.BLOCKED
+		pocket.removeAt(index)
+		parts += p.copy(x = x, y = y)
+		addFx(FxType.PLACE, x, y, p.w, p.h)
 		checkAchievements()
 		changed()
 		return PlaceResult.OK
@@ -434,9 +480,9 @@ class Engine(private val rnd: Random = Random.Default) {
 	// ---------- Колода ----------
 
 	private fun randomKind(): Kind {
-		// Предохранители выпадают реже основных деталей
-		val r = rnd.nextInt(7)
-		return if (r == 6) Kind.FUSE else Kind.MAIN[r / 2]
+		// Предохранители выпадают редко: 1 из 13
+		val r = rnd.nextInt(13)
+		return if (r == 12) Kind.FUSE else Kind.MAIN[r / 4]
 	}
 
 	private fun randomCard(force: Kind?): Card {
@@ -484,13 +530,13 @@ class Engine(private val rnd: Random = Random.Default) {
 	// Защита от тупика: нет чипов и ничего не купить — подкладываем дешёвый чип
 	private fun ensureNotStuck() {
 		if (power(Kind.CHIP) > 0L) return
-		if (deck.any { money + 1e-9 >= it.price }) return
+		if (deck.any { money + 1e-9 >= priceOf(it) }) return
 		var idx = -1
 		var maxPrice = -1.0
 		for ((i, c) in deck.withIndex()) {
 			val replaceable = c.kind == Kind.CHIP || c.kind == Kind.FUSE || deck.count { it.kind == c.kind } >= 2
-			if (replaceable && c.price > maxPrice) {
-				maxPrice = c.price
+			if (replaceable && priceOf(c) > maxPrice) {
+				maxPrice = priceOf(c)
 				idx = i
 			}
 		}
@@ -526,7 +572,6 @@ class Engine(private val rnd: Random = Random.Default) {
 		questDay = day
 		quests.clear()
 		val inc = incomePerSec(false)
-		val reward = max(150.0, floor(inc * 600))
 		for (t in QuestType.entries.shuffled(rnd).take(Rules.QUESTS_PER_DAY)) {
 			val target = when (t) {
 				QuestType.MERGE -> rnd.nextInt(3, 9).toDouble()
@@ -536,15 +581,18 @@ class Engine(private val rnd: Random = Random.Default) {
 				QuestType.PERFECT -> rnd.nextInt(5, 16) * 60.0
 				QuestType.SELL -> rnd.nextInt(3, 9).toDouble()
 			}
-			quests += Quest(t, target, questCounter(t), reward)
+			quests += Quest(t, target, questCounter(t))
 		}
 	}
+
+	// Награда считается в момент получения: 10 минут текущего дохода
+	fun questReward(): Double = max(150.0, floor(incomePerSec(false) * 600))
 
 	fun claim(q: Quest) {
 		if (q.claimed || !questDone(q)) return
 		q.claimed = true
 		questsDone++
-		earn(q.reward)
+		earn(questReward())
 		checkAchievements()
 		changed()
 	}
@@ -558,6 +606,7 @@ class Engine(private val rnd: Random = Random.Default) {
 		runEarned = 0.0
 		rerolls = 0
 		parts.clear()
+		pocket.clear()
 		fx.clear()
 		pending = 0.0
 		timer = 0.0
@@ -669,6 +718,18 @@ class Engine(private val rnd: Random = Random.Default) {
 				put("a", p.age)
 			})
 		})
+		put("pocket", JSONArray().apply {
+			for (p in pocket) put(JSONObject().apply {
+				put("id", p.id)
+				put("k", p.kind.name)
+				put("s", p.shape.name)
+				put("l", p.level)
+				put("x", p.x)
+				put("y", p.y)
+				put("r", p.rot)
+				put("a", p.age)
+			})
+		})
 		put("deck", JSONArray().apply {
 			for (c in deck) put(JSONObject().apply {
 				put("k", c.kind.name)
@@ -681,7 +742,6 @@ class Engine(private val rnd: Random = Random.Default) {
 				put("t", q.type.name)
 				put("target", q.target)
 				put("base", q.base)
-				put("reward", q.reward)
 				put("claimed", q.claimed)
 			})
 		})
@@ -713,17 +773,20 @@ class Engine(private val rnd: Random = Random.Default) {
 		lastWall = o.optLong("wall", 0L)
 		animations = o.optBoolean("anim", true)
 		questDay = o.optInt("questDay", 0)
-		parts.clear()
-		o.optJSONArray("parts")?.let { a ->
+		fun readParts(a: JSONArray?, into: MutableList<Part>) {
+			into.clear()
+			if (a == null) return
 			for (i in 0 until a.length()) {
 				val p = a.getJSONObject(i)
-				parts += Part(
+				into += Part(
 					p.getInt("id"), Kind.valueOf(p.getString("k")), Shape.valueOf(p.getString("s")),
 					p.getInt("l").coerceIn(0, Rules.MAX_LEVEL), p.getInt("x"), p.getInt("y"),
 					p.optBoolean("r", false), p.optLong("a", 0L)
 				)
 			}
 		}
+		readParts(o.optJSONArray("parts"), parts)
+		readParts(o.optJSONArray("pocket"), pocket)
 		deck.clear()
 		o.optJSONArray("deck")?.let { a ->
 			for (i in 0 until a.length()) {
@@ -739,7 +802,7 @@ class Engine(private val rnd: Random = Random.Default) {
 				runCatching {
 					Quest(
 						QuestType.valueOf(q.getString("t")), q.getDouble("target"), q.getDouble("base"),
-						q.getDouble("reward"), q.optBoolean("claimed", false)
+						q.optBoolean("claimed", false)
 					)
 				}.getOrNull()?.let { quests += it }
 			}
@@ -748,7 +811,8 @@ class Engine(private val rnd: Random = Random.Default) {
 		o.optJSONArray("ach")?.let { a ->
 			for (i in 0 until a.length()) runCatching { Ach.valueOf(a.getString(i)) }.getOrNull()?.let { achievements += it }
 		}
-		if (parts.isNotEmpty()) nextId = max(nextId, parts.maxOf { it.id } + 1)
+		val all = parts + pocket
+		if (all.isNotEmpty()) nextId = max(nextId, all.maxOf { it.id } + 1)
 		ensureNotStuck()
 		changed()
 	}

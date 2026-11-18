@@ -51,7 +51,7 @@
 	<string name="ach_earn_1b">Миллиардер</string>
 	<string name="ach_earn_1b_d">Заработать 1000000000 монет за всё время</string>
 	<string name="ach_max_power">Предел</string>
-	<string name="ach_max_power_d">Поставить деталь мощностью 1024</string>
+	<string name="ach_max_power_d">Поставить деталь мощностью 65536</string>
 	<string name="ach_giant">Тяжёлый металл</string>
 	<string name="ach_giant_d">Поставить деталь 3×3</string>
 	<string name="ach_full_board">Ни миллиметра</string>
@@ -154,4 +154,7 @@
 	<string name="ach_offline_8h_d">Вернуться спустя 8 часов или больше</string>
 	<string name="ach_best_of_best">Лучший из лучших</string>
 	<string name="ach_best_of_best_d">На плате только детали мощностью 1024, баланс ×2 держится 60 с</string>
+	<string name="pocket">Карман %1$d/%2$d</string>
+	<string name="to_pocket">В карман</string>
+	<string name="err_pocket_full">Карман полон</string>
 </resources>

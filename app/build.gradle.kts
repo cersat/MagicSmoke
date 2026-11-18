@@ -7,7 +7,6 @@ plugins {
 // Реальные ID рекламы приходят из секретов GitHub; без них — тестовые ID Google
 val admobAppId = System.getenv("ADMOB_APP_ID")?.takeIf { it.isNotBlank() } ?: "ca-app-pub-3940256099942544~3347511713"
 val admobRewardedId = System.getenv("ADMOB_REWARDED_ID")?.takeIf { it.isNotBlank() } ?: "ca-app-pub-3940256099942544/5224354917"
-val keystoreFile: String? = System.getenv("KEYSTORE_FILE")?.takeIf { it.isNotBlank() }
 
 android {
 	namespace = "com.cersat.magicsmoke"
@@ -17,26 +16,24 @@ android {
 		applicationId = "com.cersat.magicsmoke"
 		minSdk = 24
 		targetSdk = 35
-		versionCode = 5
-		versionName = "0.1.4"
+		versionCode = 6
+		versionName = "0.1.5"
 	}
 
+	// Постоянный ключ лежит в репо — подпись не меняется, обновления ставятся поверх
 	signingConfigs {
-		if (keystoreFile != null) {
-			create("release") {
-				storeFile = file(keystoreFile)
-				storePassword = System.getenv("KEYSTORE_PASSWORD")
-				keyAlias = System.getenv("KEY_ALIAS")
-				keyPassword = System.getenv("KEY_PASSWORD")
-			}
+		create("release") {
+			storeFile = file("../magicsmoke.jks")
+			storePassword = "magicsmoke"
+			keyAlias = "magicsmoke"
+			keyPassword = "magicsmoke"
 		}
 	}
 
 	buildTypes {
 		release {
 			isMinifyEnabled = false
-			// Пока нет своего ключа в секретах — подписываем debug-ключом, чтобы APK ставился
-			signingConfig = signingConfigs.getByName(if (keystoreFile != null) "release" else "debug")
+			signingConfig = signingConfigs.getByName("release")
 		}
 	}
 

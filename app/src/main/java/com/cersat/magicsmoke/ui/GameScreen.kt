@@ -66,6 +66,7 @@ fun GameScreen(engine: Engine, activity: Activity, sound: Sound, onSave: () -> U
 	val ctx = LocalContext.current
 	val save by rememberUpdatedState(onSave)
 	var selCard by remember { mutableIntStateOf(-1) }
+	var selPocket by remember { mutableIntStateOf(-1) }
 	var cardRot by remember { mutableStateOf(false) }
 	var selPart by remember { mutableIntStateOf(-1) }
 	var message by remember { mutableStateOf<String?>(null) }
@@ -201,16 +202,19 @@ fun GameScreen(engine: Engine, activity: Activity, sound: Sound, onSave: () -> U
 				engine = engine,
 				selectedPartId = selPart,
 				onTapCell = { cx, cy ->
-					if (selCard >= 0) {
-						when (engine.buy(selCard, cardRot, cx, cy)) {
+					if (selCard >= 0 || selPocket >= 0) {
+						val res = if (selCard >= 0) engine.buy(selCard, cardRot, cx, cy) else engine.fromPocket(selPocket, cardRot, cx, cy)
+						when (res) {
 							PlaceResult.OK -> {
 								sound.click()
 								selCard = -1
+								selPocket = -1
 								cardRot = false
 							}
 							PlaceResult.MERGED -> {
 								sound.merge()
 								selCard = -1
+								selPocket = -1
 								cardRot = false
 							}
 							PlaceResult.NO_MONEY -> message = ctx.getString(R.string.err_money)
@@ -248,6 +252,7 @@ fun GameScreen(engine: Engine, activity: Activity, sound: Sound, onSave: () -> U
 			// Информация о выбранном
 			val part = engine.parts.firstOrNull { it.id == selPart }
 			val card = engine.deck.getOrNull(selCard)
+			val pocketPart = engine.pocket.getOrNull(selPocket)
 			val msg = message
 			Row(
 				Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(10.dp)).background(Pal.Panel)
@@ -271,8 +276,16 @@ fun GameScreen(engine: Engine, activity: Activity, sound: Sound, onSave: () -> U
 						if (part.shape == Shape.S1x2) {
 							TextButton(onClick = {
 								if (engine.rotatePart(part.id)) sound.click() else message = ctx.getString(R.string.err_blocked)
-							}) { Text(stringResource(R.string.rotate)) }
+							}) { Text(stringResource(R.string.rotate), fontSize = 12.sp) }
 						}
+						TextButton(onClick = {
+							if (engine.toPocket(part.id)) {
+								sound.click()
+								selPart = -1
+							} else {
+								message = ctx.getString(R.string.err_pocket_full)
+							}
+						}) { Text(stringResource(R.string.to_pocket), fontSize = 12.sp) }
 						Button(onClick = {
 							engine.sell(part.id)
 							sound.sell()
@@ -281,13 +294,51 @@ fun GameScreen(engine: Engine, activity: Activity, sound: Sound, onSave: () -> U
 							Text(stringResource(R.string.sell_for, Fmt.dec(Rules.sell(part.level, part.shape), 2)), fontSize = 12.sp)
 						}
 					}
-					card != null -> {
+					card != null || pocketPart != null -> {
 						Text(stringResource(R.string.hint_place), color = Pal.Text, fontSize = 13.sp, modifier = Modifier.weight(1f))
-						if (card.shape == Shape.S1x2) {
+						if ((card?.shape ?: pocketPart?.shape) == Shape.S1x2) {
 							TextButton(onClick = { cardRot = !cardRot }) { Text(stringResource(R.string.rotate)) }
 						}
 					}
 					else -> Text(stringResource(R.string.hint_select), color = Pal.Dim, fontSize = 13.sp)
+				}
+			}
+
+			// Карман
+			Text(stringResource(R.string.pocket, engine.pocket.size, Rules.POCKET), color = Pal.Dim, fontSize = 12.sp)
+			Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+				for (i in 0 until Rules.POCKET) {
+					val p = engine.pocket.getOrNull(i)
+					val shape = RoundedCornerShape(8.dp)
+					val sel = i == selPocket && p != null
+					Box(
+						Modifier
+							.weight(1f)
+							.height(56.dp)
+							.clip(shape)
+							.background(Pal.Panel)
+							.border(if (sel) 2.dp else 1.dp, if (sel) Pal.Gold else Pal.Line, shape)
+							.clickable(enabled = p != null) {
+								if (selPocket == i) {
+									selPocket = -1
+								} else {
+									selPocket = i
+									selCard = -1
+									selPart = -1
+								}
+								cardRot = false
+							}
+							.padding(4.dp)
+					) {
+						if (p != null) {
+							val pw = if (i == selPocket && cardRot && p.shape == Shape.S1x2) p.shape.h else p.shape.w
+							val ph = if (i == selPocket && cardRot && p.shape == Shape.S1x2) p.shape.w else p.shape.h
+							Canvas(Modifier.fillMaxSize()) {
+								val unit = minOf(size.width / pw, size.height / ph)
+								drawPart(p.kind, p.level, (size.width - unit * pw) / 2, (size.height - unit * ph) / 2, unit * pw, unit * ph)
+							}
+						}
+					}
 				}
 			}
 
@@ -300,6 +351,7 @@ fun GameScreen(engine: Engine, activity: Activity, sound: Sound, onSave: () -> U
 						if (engine.reroll()) {
 							sound.click()
 							selCard = -1
+							selPocket = -1
 							cardRot = false
 						} else {
 							message = ctx.getString(R.string.err_money)
@@ -320,9 +372,10 @@ fun GameScreen(engine: Engine, activity: Activity, sound: Sound, onSave: () -> U
 						if (c != null) {
 							DeckCard(
 								card = c,
+								price = engine.priceOf(c),
 								rot = i == selCard && cardRot,
 								selected = i == selCard,
-								affordable = engine.money + 1e-9 >= c.price,
+								affordable = engine.money + 1e-9 >= engine.priceOf(c),
 								modifier = Modifier.weight(1f)
 							) {
 								if (selCard == i) {
@@ -330,6 +383,7 @@ fun GameScreen(engine: Engine, activity: Activity, sound: Sound, onSave: () -> U
 								} else {
 									selCard = i
 									selPart = -1
+									selPocket = -1
 								}
 								cardRot = false
 							}
@@ -428,6 +482,7 @@ fun GameScreen(engine: Engine, activity: Activity, sound: Sound, onSave: () -> U
 					showPrestige = false
 					selCard = -1
 					selPart = -1
+					selPocket = -1
 				}) { Text(stringResource(R.string.prestige_do)) }
 			},
 			dismissButton = {
@@ -467,7 +522,7 @@ fun GameScreen(engine: Engine, activity: Activity, sound: Sound, onSave: () -> U
 							)
 							Row(verticalAlignment = Alignment.CenterVertically) {
 								Text(
-									questProgressText(q.type, prog, q.target) + " · " + stringResource(R.string.quest_reward, Fmt.int(q.reward)),
+									questProgressText(q.type, prog, q.target) + " · " + stringResource(R.string.quest_reward, Fmt.int(engine.questReward())),
 									color = Pal.Dim, fontSize = 12.sp, modifier = Modifier.weight(1f)
 								)
 								if (q.claimed) {
@@ -583,7 +638,7 @@ fun GameScreen(engine: Engine, activity: Activity, sound: Sound, onSave: () -> U
 }
 
 @Composable
-private fun DeckCard(card: Card, rot: Boolean, selected: Boolean, affordable: Boolean, modifier: Modifier, onClick: () -> Unit) {
+private fun DeckCard(card: Card, price: Double, rot: Boolean, selected: Boolean, affordable: Boolean, modifier: Modifier, onClick: () -> Unit) {
 	val c = card.copy(rot = rot)
 	val shape = RoundedCornerShape(8.dp)
 	Column(
@@ -603,7 +658,7 @@ private fun DeckCard(card: Card, rot: Boolean, selected: Boolean, affordable: Bo
 		}
 		Text("${c.w}×${c.h}", color = Pal.Dim, fontSize = 10.sp, maxLines = 1)
 		Text(
-			Fmt.dec(c.price, 1), color = if (affordable) Pal.Gold else Pal.Bad,
+			Fmt.dec(price, 1), color = if (affordable) Pal.Gold else Pal.Bad,
 			fontSize = 11.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold,
 			maxLines = 1, softWrap = false
 		)

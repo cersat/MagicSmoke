@@ -25,11 +25,15 @@ enum class Shape(val w: Int, val h: Int) {
 object Rules {
 	const val GRID = 10
 	const val DECK = 8
-	const val MAX_LEVEL = 10
+	const val MAX_LEVEL = 16
+	const val BEST_LEVEL = 10
+	const val POCKET = 3
+	const val FUSE_MIN_PRICE = 25.0
+	const val FUSE_PRICE_SHARE = 0.05
 	const val START_MONEY = 100.0
 	const val BASE_DELAY = 10.0
 	const val MIN_DELAY = 1.0
-	const val INCOME_PER_POWER = 0.1
+	const val INCOME_PER_POWER = 1.0
 	const val MIN_MULT = 0.5
 	const val MAX_MULT = 2.0
 	const val BALANCE_TOLERANCE = 0.10
@@ -87,7 +91,7 @@ class OfflineResult(val seconds: Long, val earned: Double, val burned: Int)
 
 enum class QuestType { MERGE, BUY, EARN, REROLL, PERFECT, SELL }
 
-class Quest(val type: QuestType, val target: Double, val base: Double, val reward: Double, var claimed: Boolean = false)
+class Quest(val type: QuestType, val target: Double, val base: Double, var claimed: Boolean = false)
 
 enum class FxType { PAYOUT, MERGE, PLACE }
 

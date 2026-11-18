@@ -52,7 +52,7 @@
 	<string name="ach_earn_1b">Billionaire</string>
 	<string name="ach_earn_1b_d">Earn 1000000000 coins in total</string>
 	<string name="ach_max_power">The limit</string>
-	<string name="ach_max_power_d">Place a part with power 1024</string>
+	<string name="ach_max_power_d">Place a part with power 65536</string>
 	<string name="ach_giant">Heavy metal</string>
 	<string name="ach_giant_d">Place a 3×3 part</string>
 	<string name="ach_full_board">Not a millimetre</string>
@@ -155,4 +155,7 @@
 	<string name="ach_offline_8h_d">Come back after 8 hours or more</string>
 	<string name="ach_best_of_best">Best of the best</string>
 	<string name="ach_best_of_best_d">Only 1024-power parts on the board and ×2 balance held for 60 s</string>
+	<string name="pocket">Pocket %1$d/%2$d</string>
+	<string name="to_pocket">To pocket</string>
+	<string name="err_pocket_full">The pocket is full</string>
 </resources>
