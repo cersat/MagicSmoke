@@ -158,4 +158,5 @@
 	<string name="pocket">Pocket %1$d/%2$d</string>
 	<string name="to_pocket">To pocket</string>
 	<string name="err_pocket_full">The pocket is full</string>
+	<string name="need_plus">need +%1$s</string>
 </resources>

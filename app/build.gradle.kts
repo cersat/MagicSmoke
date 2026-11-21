@@ -16,8 +16,8 @@ android {
 		applicationId = "com.cersat.magicsmoke"
 		minSdk = 24
 		targetSdk = 35
-		versionCode = 7
-		versionName = "0.1.6"
+		versionCode = 8
+		versionName = "0.1.7"
 	}
 
 	// Постоянный ключ лежит в репо — подпись не меняется, обновления ставятся поверх

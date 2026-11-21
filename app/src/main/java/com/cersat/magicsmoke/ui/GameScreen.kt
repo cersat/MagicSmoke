@@ -177,9 +177,13 @@ fun GameScreen(engine: Engine, activity: Activity, sound: Sound, onSave: () -> U
 						Column(Modifier.weight(1f)) {
 							Text("${kindName(k)} · ${Rules.IDEAL[i].toInt()}", color = kindColor(k), fontSize = 11.sp, maxLines = 1)
 							Text(
-								"$have / ${tg[i]}",
-								color = if (have >= tg[i]) kindColor(k) else Pal.Text,
+								"$have", color = Pal.Text,
 								fontSize = 13.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, maxLines = 1
+							)
+							Text(
+								if (have >= tg[i]) "✓" else stringResource(R.string.need_plus, (tg[i] - have).toString()),
+								color = if (have >= tg[i]) Pal.Good else kindColor(k),
+								fontSize = 11.sp, fontFamily = FontFamily.Monospace, maxLines = 1
 							)
 						}
 					}
